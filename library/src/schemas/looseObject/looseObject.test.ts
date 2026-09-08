@@ -672,4 +672,46 @@ describe('looseObject', () => {
       } satisfies FailureDataset<InferIssue<typeof schema>>);
     });
   });
+
+  describe('should pass through keys colliding with the object prototype', () => {
+    const schema = looseObject({ key: string() });
+
+    test.each(['toString', 'valueOf', 'hasOwnProperty'])(
+      'for unknown %s key',
+      (key) => {
+        const input = { key: 'foo', [key]: 'bar' };
+        expect(schema['~run']({ value: input }, {})).toStrictEqual({
+          typed: true,
+          value: { key: 'foo', [key]: 'bar' },
+        });
+      }
+    );
+  });
+
+  describe('should parse declared keys colliding with the object prototype', () => {
+    test.each([
+      'toString',
+      'valueOf',
+      'hasOwnProperty',
+      'constructor',
+      'prototype',
+    ])('for declared %s key', (key) => {
+      const schema = looseObject({ [key]: string() });
+      const input = { [key]: 'foo' };
+      expect(schema['~run']({ value: input }, {})).toStrictEqual({
+        typed: true,
+        value: input,
+      });
+    });
+  });
+
+  test('without including excluded unknown keys', () => {
+    const schema = looseObject({ key: string() });
+    const input = JSON.parse(
+      '{"key":"foo","__proto__":{"admin":true},"constructor":"bar","prototype":"baz"}'
+    );
+    const dataset = schema['~run']({ value: input }, {});
+    expect(dataset).toStrictEqual({ typed: true, value: { key: 'foo' } });
+    expect(Object.getPrototypeOf(dataset.value)).toBe(Object.prototype);
+  });
 });

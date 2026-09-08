@@ -67,6 +67,18 @@ describe('strictObject', () => {
         { key1: 'foo', key2: 123 },
       ]);
     });
+
+    test.each([
+      'toString',
+      'valueOf',
+      'hasOwnProperty',
+      'constructor',
+      'prototype',
+    ])('for declared %s key', (key) => {
+      const schema = strictObject({ [key]: string() });
+      const input = { [key]: 'foo' };
+      expectNoSchemaIssue(schema, [input]);
+    });
   });
 
   describe('should return dataset with issues', () => {
@@ -695,19 +707,6 @@ describe('strictObject', () => {
         ],
       } satisfies FailureDataset<InferIssue<typeof schema>>);
     });
-  });
-
-  describe('should reject keys colliding with the object prototype', () => {
-    const schema = strictObject({ key: string() });
-
-    const baseInfo = {
-      message: expect.any(String),
-      requirement: undefined,
-      issues: undefined,
-      lang: undefined,
-      abortEarly: undefined,
-      abortPipeEarly: undefined,
-    };
 
     test.each([
       'toString',
@@ -716,6 +715,7 @@ describe('strictObject', () => {
       'constructor',
       '__proto__',
     ])('for unknown %s key', (key) => {
+      const schema = strictObject({ key: string() });
       const input = { key: 'foo', [key]: 'bar' };
       expect(schema['~run']({ value: input }, {})).toStrictEqual({
         typed: false,
@@ -740,23 +740,6 @@ describe('strictObject', () => {
           },
         ],
       } satisfies FailureDataset<InferIssue<typeof schema>>);
-    });
-  });
-
-  describe('should parse declared keys colliding with the object prototype', () => {
-    test.each([
-      'toString',
-      'valueOf',
-      'hasOwnProperty',
-      'constructor',
-      'prototype',
-    ])('for declared %s key', (key) => {
-      const schema = strictObject({ [key]: string() });
-      const input = { [key]: 'foo' };
-      expect(schema['~run']({ value: input }, {})).toStrictEqual({
-        typed: true,
-        value: input,
-      });
     });
   });
 });

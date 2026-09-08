@@ -84,6 +84,37 @@ describe('looseObjectAsync', () => {
         [{ key1: 'foo', key2: 123, other1: 'bar', other2: null }]
       );
     });
+
+    test.each(['toString', 'valueOf', 'hasOwnProperty'])(
+      'for unknown %s key',
+      async (key) => {
+        const schema = looseObjectAsync({ key: string() });
+        const input = { key: 'foo', [key]: 'bar' };
+        await expectNoSchemaIssueAsync(schema, [input]);
+      }
+    );
+
+    test.each([
+      'toString',
+      'valueOf',
+      'hasOwnProperty',
+      'constructor',
+      'prototype',
+    ])('for declared %s key', async (key) => {
+      const schema = looseObjectAsync({ [key]: string() });
+      const input = { [key]: 'foo' };
+      await expectNoSchemaIssueAsync(schema, [input]);
+    });
+
+    test('without including excluded unknown keys', async () => {
+      const schema = looseObjectAsync({ key: string() });
+      const input = JSON.parse(
+        '{"key":"foo","__proto__":{"admin":true},"constructor":"bar","prototype":"baz"}'
+      );
+      const dataset = await schema['~run']({ value: input }, {});
+      expect(dataset).toStrictEqual({ typed: true, value: { key: 'foo' } });
+      expect(Object.getPrototypeOf(dataset.value)).toBe(Object.prototype);
+    });
   });
 
   describe('should return dataset with issues', () => {
@@ -856,47 +887,5 @@ describe('looseObjectAsync', () => {
         ],
       } satisfies FailureDataset<InferIssue<typeof schema>>);
     });
-  });
-
-  describe('should pass through keys colliding with the object prototype', () => {
-    const schema = looseObjectAsync({ key: string() });
-
-    test.each(['toString', 'valueOf', 'hasOwnProperty'])(
-      'for unknown %s key',
-      async (key) => {
-        const input = { key: 'foo', [key]: 'bar' };
-        expect(await schema['~run']({ value: input }, {})).toStrictEqual({
-          typed: true,
-          value: { key: 'foo', [key]: 'bar' },
-        });
-      }
-    );
-  });
-
-  describe('should parse declared keys colliding with the object prototype', () => {
-    test.each([
-      'toString',
-      'valueOf',
-      'hasOwnProperty',
-      'constructor',
-      'prototype',
-    ])('for declared %s key', async (key) => {
-      const schema = looseObjectAsync({ [key]: string() });
-      const input = { [key]: 'foo' };
-      expect(await schema['~run']({ value: input }, {})).toStrictEqual({
-        typed: true,
-        value: input,
-      });
-    });
-  });
-
-  test('without including excluded unknown keys', async () => {
-    const schema = looseObjectAsync({ key: string() });
-    const input = JSON.parse(
-      '{"key":"foo","__proto__":{"admin":true},"constructor":"bar","prototype":"baz"}'
-    );
-    const dataset = await schema['~run']({ value: input }, {});
-    expect(dataset).toStrictEqual({ typed: true, value: { key: 'foo' } });
-    expect(Object.getPrototypeOf(dataset.value)).toBe(Object.prototype);
   });
 });

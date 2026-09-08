@@ -79,6 +79,40 @@ describe('objectWithRest', () => {
         [{ key1: 'foo', key2: 123, other: true }]
       );
     });
+
+    test.each([
+      'toString',
+      'valueOf',
+      'hasOwnProperty',
+      'constructor',
+      'prototype',
+    ])('for declared %s key', (key) => {
+      const schema = objectWithRest({ [key]: string() }, number());
+      const input = { [key]: 'foo' };
+      expect(schema['~run']({ value: input }, {})).toStrictEqual({
+        typed: true,
+        value: input,
+      });
+    });
+
+    test('without including excluded unknown keys', () => {
+      const schema = objectWithRest({ key: string() }, number());
+      const input = JSON.parse(
+        '{"key":"foo","__proto__":{"admin":true},"constructor":"bar","prototype":"baz"}'
+      );
+      const dataset = schema['~run']({ value: input }, {});
+      expect(dataset).toStrictEqual({ typed: true, value: { key: 'foo' } });
+      expect(Object.getPrototypeOf(dataset.value)).toBe(Object.prototype);
+    });
+
+    test('for valid rest keys colliding with the object prototype', () => {
+      const schema = objectWithRest({ key: string() }, number());
+      const input = { key: 'foo', toString: 1, valueOf: 2, hasOwnProperty: 3 };
+      expect(schema['~run']({ value: input }, {})).toStrictEqual({
+        typed: true,
+        value: input,
+      });
+    });
   });
 
   describe('should return dataset with issues', () => {
@@ -804,23 +838,11 @@ describe('objectWithRest', () => {
         ],
       } satisfies FailureDataset<InferIssue<typeof schema>>);
     });
-  });
-
-  describe('should apply rest to keys colliding with the object prototype', () => {
-    const schema = objectWithRest({ key: string() }, number());
-
-    const baseInfo = {
-      message: expect.any(String),
-      requirement: undefined,
-      issues: undefined,
-      lang: undefined,
-      abortEarly: undefined,
-      abortPipeEarly: undefined,
-    };
 
     test.each(['toString', 'valueOf', 'hasOwnProperty'])(
       'for unknown %s key',
       (key) => {
+        const schema = objectWithRest({ key: string() }, number());
         const input = { key: 'foo', [key]: 'bar' };
         expect(schema['~run']({ value: input }, {})).toStrictEqual({
           typed: false,
@@ -847,41 +869,5 @@ describe('objectWithRest', () => {
         } satisfies FailureDataset<InferIssue<typeof schema>>);
       }
     );
-  });
-
-  describe('should parse declared keys colliding with the object prototype', () => {
-    test.each([
-      'toString',
-      'valueOf',
-      'hasOwnProperty',
-      'constructor',
-      'prototype',
-    ])('for declared %s key', (key) => {
-      const schema = objectWithRest({ [key]: string() }, number());
-      const input = { [key]: 'foo' };
-      expect(schema['~run']({ value: input }, {})).toStrictEqual({
-        typed: true,
-        value: input,
-      });
-    });
-  });
-
-  test('without including excluded unknown keys', () => {
-    const schema = objectWithRest({ key: string() }, number());
-    const input = JSON.parse(
-      '{"key":"foo","__proto__":{"admin":true},"constructor":"bar","prototype":"baz"}'
-    );
-    const dataset = schema['~run']({ value: input }, {});
-    expect(dataset).toStrictEqual({ typed: true, value: { key: 'foo' } });
-    expect(Object.getPrototypeOf(dataset.value)).toBe(Object.prototype);
-  });
-
-  test('for valid rest keys colliding with the object prototype', () => {
-    const schema = objectWithRest({ key: string() }, number());
-    const input = { key: 'foo', toString: 1, valueOf: 2, hasOwnProperty: 3 };
-    expect(schema['~run']({ value: input }, {})).toStrictEqual({
-      typed: true,
-      value: input,
-    });
   });
 });
